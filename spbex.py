@@ -4,7 +4,7 @@ import logging as log
 import time
 from dataclasses import dataclass
 
-import requests
+import httpx
 
 from history import HistoryEntry
 
@@ -22,18 +22,20 @@ class SpbexAPI:
 
     base_url = "https://investcab.ru/api"
 
-    def get_ticker(self, ticker: str) -> list[HistoryEntry]:
+    async def get_ticker(self, ticker: str) -> list[HistoryEntry]:
         range = self.get_spbex_range()
         url = self.get_url_day_resolution(ticker, range)
-        log.debug(f"Requesting security history for {ticker} via {url}")
-        res = requests.get(url)
 
-        if res.status_code != 200:
-            log.fatal(f"{url} status code != 200")
-            return []
+        async with httpx.AsyncClient() as client:
+            log.debug(f"Requesting security history for {ticker} via {url}")
+            res = await client.get(url)
 
-        j = res.json()
-        j = json.loads(j)
+            if res.status_code != 200:
+                log.fatal(f"{url} status code != 200")
+                return []
+
+            j = res.json()
+            j = json.loads(j)
 
         out = []
         for time, high, low, close in zip(j["t"], j["h"], j["l"], j["c"]):

@@ -12,11 +12,11 @@ EXCHANGE_API_DICT = {
 
 
 @app.get("/{exchange}/{ticker}")
-def get_ticker(exchange: str, ticker: str):
+async def get_ticker(exchange: str, ticker: str):
     exchange = exchange.lower()
     ticker = ticker.lower()
 
     api = EXCHANGE_API_DICT.get(exchange, None)
     if api is None:
         return {"error": "no api"}
-    return api.get_ticker(ticker)
+    return await api.get_ticker(ticker)

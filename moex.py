@@ -2,7 +2,7 @@ import datetime
 import logging as log
 from dataclasses import dataclass
 
-import requests
+import httpx
 
 from history import HistoryEntry
 
@@ -21,8 +21,8 @@ class MoexSecurityParameters:
 class MoexAPI:
     base_url = "https://iss.moex.com"
 
-    def get_ticker(self, ticker: str) -> list[HistoryEntry]:
-        security = self.get_security_parameters(ticker)
+    async def get_ticker(self, ticker: str) -> list[HistoryEntry]:
+        security = await self.get_security_parameters(ticker)
         if security is None:
             log.fatal(f"No security parameters for {ticker}")
             return []
@@ -30,7 +30,7 @@ class MoexAPI:
         out = []
         start = 0
         while True:
-            entries = self.get_security_history(ticker, security, start)
+            entries = await self.get_security_history(ticker, security, start)
             if len(entries) == 0:
                 break
             out += entries
@@ -38,28 +38,30 @@ class MoexAPI:
 
         return out
 
-    def get_security_history(self, ticker: str, security: MoexSecurityParameters, start: int = 0) -> list[HistoryEntry]:
+    async def get_security_history(self, ticker: str, security: MoexSecurityParameters, start: int = 0) -> list[HistoryEntry]:
         url = self.get_security_history_url(ticker, security, start)
-        log.debug(f"Requesting security history for {ticker} via {url}")
-        res = requests.get(url)
 
-        if res.status_code != 200:
-            log.fatal(f"Get {url} status code != 200")
-            return []
+        async with httpx.AsyncClient() as client:
+            log.debug(f"Requesting security history for {ticker} via {url}")
+            res = await client.get(url)
 
-        j = res.json()
+            if res.status_code != 200:
+                log.fatal(f"Get {url} status code != 200")
+                return []
 
-        if "history" not in j:
-            log.fatal("history not in j")
-            return []
+            j = res.json()
 
-        if "data" not in j["history"]:
-            log.fatal("data not in j['history']")
-            return []
+            if "history" not in j:
+                log.fatal("history not in j")
+                return []
 
-        if len(j["history"]["data"]) < 1:
-            log.debug("j['history']['data'] len is 0")
-            return []
+            if "data" not in j["history"]:
+                log.fatal("data not in j['history']")
+                return []
+
+            if len(j["history"]["data"]) < 1:
+                log.debug("j['history']['data'] len is 0")
+                return []
 
         out = []
         for entry in j["history"]["data"]:
@@ -85,28 +87,30 @@ class MoexAPI:
     def get_security_history_url(self, ticker: str, security: MoexSecurityParameters, start) -> str:
         return f"{self.base_url}/iss/history/engines/{security.engine}/markets/{security.market}/boards/{security.board}/securities/{ticker}.json?iss.meta=off&start={start}&history.columns=TRADEDATE,CLOSE,HIGH,LOW,VOLUME,FACEVALUE"
 
-    def get_security_parameters(self, ticker: str) -> MoexSecurityParameters | None:
+    async def get_security_parameters(self, ticker: str) -> MoexSecurityParameters | None:
         url = f"{self.base_url}/iss/securities/{ticker}.json?iss.only=boards&iss.meta=off&boards.columns=boardid,market,engine,is_primary"
-        log.debug(f"Requesting security parameters for {ticker} via {url}")
-        res = requests.get(url)
 
-        if res.status_code != 200:
-            log.fatal(f"{url} status code != 200")
-            return None
+        async with httpx.AsyncClient() as client:
+            log.debug(f"Requesting security parameters for {ticker} via {url}")
+            res = await client.get(url)
 
-        j = res.json()
+            if res.status_code != 200:
+                log.fatal(f"{url} status code != 200")
+                return None
 
-        if "boards" not in j:
-            log.fatal("boards not in response")
-            return None
+            j = res.json()
 
-        if "data" not in j["boards"]:
-            log.fatal("data not in j['boards']")
-            return None
+            if "boards" not in j:
+                log.fatal("boards not in response")
+                return None
 
-        if len(j["boards"]["data"]) < 1:
-            log.fatal("j['boards']['data'] len < 1")
-            return None
+            if "data" not in j["boards"]:
+                log.fatal("data not in j['boards']")
+                return None
+
+            if len(j["boards"]["data"]) < 1:
+                log.fatal("j['boards']['data'] len < 1")
+                return None
 
         for entry in j["boards"]["data"]:
             if entry[3] == 1:
