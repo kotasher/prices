@@ -1,0 +1,31 @@
+version: "3"
+services:
+  prices:
+    image: exchange_api
+    container_name: exchange_api
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - 65075:8000/tcp
+    environment:
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+    # disable setuid/setgid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+     test: wget --no-verbose --tries=1 --spider http://localhost:8080/healthcheck || exit 1
+     interval: 30s
+     start_period: 5s
+    labels:
+      # watchtower skip
+      - "com.centurylinklabs.watchtower.enable=false"
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+  

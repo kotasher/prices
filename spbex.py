@@ -6,10 +6,12 @@ from dataclasses import dataclass
 
 import httpx
 
+from env import ENV
 from history import HistoryEntry
 
-# log.basicConfig()
-# log.getLogger().setLevel(log.DEBUG)
+if ENV.verbose:
+    log.basicConfig()
+    log.getLogger().setLevel(log.DEBUG)
 
 
 @dataclass
