@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from dateutils import tomorrow_unix
 from env import ENV
 from history import HistoryEntry
 from redis_connection import redis_connection
@@ -12,9 +13,9 @@ from redis_connection import redis_connection
 
 @dataclass
 class MoexSecurityParameters:
-    board: str = ""
-    market: str = ""
-    engine: str = ""
+    board: str
+    market: str
+    engine: str
 
 
 if ENV.verbose:
@@ -70,10 +71,11 @@ class MoexAPI:
                 if len(j["history"]["data"]) == self.entries_per_page:
                     log.debug(
                         f"Saving {url} to cache forever because it has {self.entries_per_page} entries per page")
-                    await redis_connection.set(url, json.dumps(j))
+                    await redis_connection.set(url, res)
                 else:
                     log.debug(
-                        f"j['history']['data'] len is < {self.entries_per_page} so do not cache it")
+                        f"j['history']['data'] len is < {self.entries_per_page} so cache it until tomorrow")
+                    await redis_connection.set(url, res, exat=tomorrow_unix())
         else:
             log.debug(f"Requesting security history for {ticker} via {url}")
             res = await self._fetch_security_history(url)
@@ -119,8 +121,7 @@ class MoexAPI:
             cache = await redis_connection.get(url)
             if cache is not None:
                 log.debug(f"Got cached result {cache}")
-                security_params = MoexSecurityParameters()
-                security_params.__dict__ = json.loads(cache)
+                security_params = MoexSecurityParameters(**json.loads(cache))
                 return security_params
 
         log.debug(f"REDIS disabled or no cached result for {url}")
