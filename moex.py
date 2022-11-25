@@ -36,11 +36,10 @@ class MoexAPI:
         start = 0
         while True:
             entries = await self._get_security_history(ticker, security, start)
-            if len(entries) != self.entries_per_page:
-                break
             out += entries
             start += self.entries_per_page
-
+            if len(entries) != self.entries_per_page:
+                break
         return out
 
     async def _fetch_security_history(self, url: str) -> str | None:
@@ -75,7 +74,6 @@ class MoexAPI:
                 else:
                     log.debug(
                         f"j['history']['data'] len is < {self.entries_per_page} so do not cache it")
-
         else:
             log.debug(f"Requesting security history for {ticker} via {url}")
             res = await self._fetch_security_history(url)
