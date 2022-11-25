@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import httpx
 
-from dateutil import tomorrow_unix
 from env import ENV
 from history import HistoryEntry
 from redis_connection import redis_connection
@@ -25,6 +24,7 @@ if ENV.verbose:
 
 class MoexAPI:
     base_url = "https://iss.moex.com"
+    entries_per_page = 100
 
     async def get_ticker(self, ticker: str) -> list[HistoryEntry]:
         security = await self._get_security_parameters(ticker)
@@ -36,10 +36,10 @@ class MoexAPI:
         start = 0
         while True:
             entries = await self._get_security_history(ticker, security, start)
-            if len(entries) == 0:
+            if len(entries) != self.entries_per_page:
                 break
             out += entries
-            start += 100
+            start += self.entries_per_page
 
         return out
 
@@ -58,7 +58,7 @@ class MoexAPI:
 
         if ENV.redis_enabled:
             log.debug(f"REDIS enabled, trying to get from cache {url}")
-            cache = redis_connection.get(url)
+            cache = await redis_connection.get(url)
             if cache is not None:
                 log.debug(f"Got cached result {cache}")
                 j = json.loads(cache)
@@ -68,11 +68,13 @@ class MoexAPI:
                 res = await self._fetch_security_history(url)
                 j = json.loads(res)
 
-                if len(j["history"]["data"]) != 0:
-                    log.debug(f"Saving {url} to cache for 1 hour")
-                    redis_connection.set(url, json.dumps(j), exat=tomorrow_unix())
+                if len(j["history"]["data"]) == self.entries_per_page:
+                    log.debug(
+                        f"Saving {url} to cache forever because it has {self.entries_per_page} entries per page")
+                    await redis_connection.set(url, json.dumps(j))
                 else:
-                    log.debug("j['history']['data'] len is = 0")
+                    log.debug(
+                        f"j['history']['data'] len is < {self.entries_per_page} so do not cache it")
 
         else:
             log.debug(f"Requesting security history for {ticker} via {url}")
@@ -116,7 +118,7 @@ class MoexAPI:
 
         if ENV.redis_enabled:
             log.debug(f"REDIS enabled, trying to get from cache {url}")
-            cache = redis_connection.get(url)
+            cache = await redis_connection.get(url)
             if cache is not None:
                 log.debug(f"Got cached result {cache}")
                 security_params = MoexSecurityParameters()
@@ -153,7 +155,7 @@ class MoexAPI:
                 if ENV.redis_enabled:
                     log.debug(f"Saving {security_params.__dict__} to cache")
                     cached_json = json.dumps(security_params.__dict__)
-                    redis_connection.set(url, cached_json)
+                    await redis_connection.set(url, cached_json)
                 return security_params
 
         log.fatal(f"Not found primary board for {ticker}")
