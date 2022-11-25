@@ -1,6 +1,6 @@
 version: "3"
 services:
-  prices:
+  exchange_api:
     image: exchange_api
     container_name: exchange_api
     restart: unless-stopped
@@ -9,8 +9,8 @@ services:
     ports:
       - 65075:8000/tcp
     environment:
-      - REDIS_ENABLED=true
-      - REDIS_HOST=redis
+      - EXCHANGE_API_REDIS_ENABLED=true
+      - EXCHANGE_API_REDIS_HOST=redis
     # disable setuid/setgid
     security_opt:
       - no-new-privileges:true
