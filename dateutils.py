@@ -1,7 +1,9 @@
 import datetime
 
-# gives tomorrow unix time +5 minutes
-def tomorrow_unix():
-    now = datetime.datetime.now()
-    today = datetime.datetime(year=now.year, month=now.month, day=now.day, minute=5)
-    return (today + datetime.timedelta(days=1)).strftime("%s")
+
+# if used with MSK timezone, it is 06:00 MSK
+def tomorrow_unix_moex():
+    now = datetime.datetime.utcnow()
+    now = now.replace(minute=0, hour=6, second=0,
+                      microsecond=0, tzinfo=datetime.timezone.utc)
+    return (now + datetime.timedelta(days=1)).strftime("%s")

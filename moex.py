@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from dateutils import tomorrow_unix
+from dateutils import tomorrow_unix_moex
 from env import ENV
 from history import HistoryEntry
 from redis_connection import redis_connection
@@ -75,7 +75,7 @@ class MoexAPI:
                 else:
                     log.debug(
                         f"j['history']['data'] len is < {self.entries_per_page} so cache it until tomorrow")
-                    await redis_connection.set(url, res, exat=tomorrow_unix())
+                    await redis_connection.set(url, res, exat=tomorrow_unix_moex())
         else:
             log.debug(f"Requesting security history for {ticker} via {url}")
             res = await self._fetch_security_history(url)
@@ -85,9 +85,11 @@ class MoexAPI:
             log.debug("no history in j")
             return []
 
-        if "data" not in j["history"]:
-            log.debug("no data in j['history']")
+        if "columns" not in j["history"] or "data" not in j["history"]:
+            log.debug("no columns or data in j['history']")
             return []
+
+        is_bonds = "FACEVALUE" in j["history"]["columns"]
 
         out = []
         for entry in j["history"]["data"]:
@@ -95,11 +97,11 @@ class MoexAPI:
             date = datetime.date.fromisoformat(entry[0])
             close = entry[1]
             high = entry[2]
-            low = entry[2]
-            volume = entry[3]
+            low = entry[3]
+            volume = entry[4]
 
             # bonds
-            if len(entry) == 6:
+            if is_bonds:
                 facevalue_coef = entry[5] / 100
                 close *= facevalue_coef
                 high *= facevalue_coef
