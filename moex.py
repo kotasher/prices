@@ -1,9 +1,9 @@
 import datetime
 import json
 import logging as log
-from dataclasses import dataclass
 
 import httpx
+from pydantic import BaseModel
 
 from dateutils import tomorrow_unix_moex
 from env import ENV
@@ -11,8 +11,7 @@ from history import HistoryEntry
 from redis_connection import redis_connection
 
 
-@dataclass
-class MoexSecurityParameters:
+class MoexSecurityParameters(BaseModel):
     board: str
     market: str
     engine: str
@@ -23,9 +22,25 @@ if ENV.verbose:
     log.getLogger().setLevel(log.DEBUG)
 
 
+class Security:
+    Date = 0
+    Close = 1
+    High = 2
+    Low = 3
+    Volume = 4
+    Facevalue = 5
+
+
+class Params:
+    Board = 0
+    Market = 1
+    Engine = 2
+
+
 class MoexAPI:
     base_url = "https://iss.moex.com"
     entries_per_page = 100
+    is_primary_board = 1
 
     async def get_ticker(self, ticker: str) -> list[HistoryEntry]:
         security = await self._get_security_parameters(ticker)
@@ -94,20 +109,34 @@ class MoexAPI:
         out = []
         for entry in j["history"]["data"]:
 
-            date = datetime.date.fromisoformat(entry[0])
-            close = entry[1]
-            high = entry[2]
-            low = entry[3]
-            volume = entry[4]
+            facevalue_coef = 1
+            if is_bonds and entry[Security.Facevalue] is not None:
+                facevalue_coef = entry[Security.Facevalue] / 100
 
-            # bonds
-            if is_bonds:
-                facevalue_coef = entry[5] / 100
+            date = datetime.date.fromisoformat(entry[Security.Date])
+
+            close = entry[Security.Close]
+            if is_bonds and close is not None:
                 close *= facevalue_coef
+
+            high = entry[Security.High]
+            if is_bonds and high is not None:
                 high *= facevalue_coef
+
+            low = entry[Security.Low]
+            if is_bonds and low is not None:
                 low *= facevalue_coef
 
-            history_entry = HistoryEntry(date, close, high, low, volume)
+            volume = entry[Security.Volume]
+
+            history_entry_data = {
+                "date": date,
+                "close": close,
+                "high": high,
+                "low": low,
+                "volume": volume,
+            }
+            history_entry = HistoryEntry(**history_entry_data)
             out.append(history_entry)
 
         return out
@@ -150,14 +179,17 @@ class MoexAPI:
                 return None
 
         for entry in j["boards"]["data"]:
-            if entry[3] == 1:
-                security_params = MoexSecurityParameters(
-                    entry[0], entry[1], entry[2])
+            if entry[3] == self.is_primary_board:
+                security_params_dict = {
+                    "board": entry[Params.Board],
+                    "market": entry[Params.Market],
+                    "engine": entry[Params.Engine],
+                }
                 if ENV.redis_enabled:
-                    log.debug(f"Saving {security_params.__dict__} to cache")
-                    cached_json = json.dumps(security_params.__dict__)
+                    log.debug(f"Saving {security_params_dict} to cache")
+                    cached_json = json.dumps(security_params_dict)
                     await redis_connection.set(url, cached_json)
-                return security_params
+                return MoexSecurityParameters(**security_params_dict)
 
         log.fatal(f"Not found primary board for {ticker}")
         return None

@@ -1,11 +1,11 @@
 import datetime
-from dataclasses import dataclass
+
+from pydantic import BaseModel
 
 
-@dataclass
-class HistoryEntry:
+class HistoryEntry(BaseModel):
     date: datetime.date
-    close: float
-    high: float
-    low: float
-    volume: float
+    close: float | None
+    high: float | None
+    low: float | None
+    volume: float | None

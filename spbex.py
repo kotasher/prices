@@ -2,9 +2,9 @@ import datetime
 import json
 import logging as log
 import time
-from dataclasses import dataclass
 
 import httpx
+from pydantic import BaseModel
 
 from env import ENV
 from history import HistoryEntry
@@ -14,8 +14,7 @@ if ENV.verbose:
     log.getLogger().setLevel(log.DEBUG)
 
 
-@dataclass
-class SpbexRange:
+class SpbexRange(BaseModel):
     start: int
     end: int
 
@@ -36,20 +35,28 @@ class SpbexAPI:
                 log.fatal(f"{url} status code != 200")
                 return []
 
+            # not an error, it should be deserialized twice!
             j = res.json()
             j = json.loads(j)
 
         out = []
         for time, high, low, close in zip(j["t"], j["h"], j["l"], j["c"]):
             date = datetime.date.fromtimestamp(time)
-            history_entry = HistoryEntry(date, close, high, low, 0.0)
+            history_entry_dict = {
+                "date": date,
+                "close": close,
+                "high": high,
+                "low": low,
+                "volume": 0.0,
+            }
+            history_entry = HistoryEntry(**history_entry_dict)
             out.append(history_entry)
 
         return out
 
     def get_spbex_range(self) -> SpbexRange:
         return SpbexRange(
-            start=1434014660,
+            start=0,
             end=int(time.time()),
         )
 
