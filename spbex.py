@@ -1,9 +1,9 @@
 import datetime
-import json
 import logging as log
 import time
 
 import httpx
+import ujson
 from pydantic import BaseModel
 
 from env import ENV
@@ -37,7 +37,7 @@ class SpbexAPI:
 
             # not an error, it should be deserialized twice!
             j = res.json()
-            j = json.loads(j)
+            j = ujson.loads(j)
 
         out = []
         for time, high, low, close in zip(j["t"], j["h"], j["l"], j["c"]):

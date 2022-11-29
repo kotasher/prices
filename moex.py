@@ -1,8 +1,8 @@
 import datetime
-import json
 import logging as log
 
 import httpx
+import ujson
 from pydantic import BaseModel
 
 from dateutils import tomorrow_unix_moex
@@ -76,12 +76,12 @@ class MoexAPI:
             cache = await redis_connection.get(url)
             if cache is not None:
                 log.debug(f"Got cached result {cache}")
-                j = json.loads(cache)
+                j = ujson.loads(cache)
             else:
                 log.debug(
                     f"No cached result, requesting security history for {ticker} via {url}")
                 res = await self._fetch_security_history(url)
-                j = json.loads(res)
+                j = ujson.loads(res)
 
                 if len(j["history"]["data"]) == self.entries_per_page:
                     log.debug(
@@ -94,7 +94,7 @@ class MoexAPI:
         else:
             log.debug(f"Requesting security history for {ticker} via {url}")
             res = await self._fetch_security_history(url)
-            j = json.loads(res)
+            j = ujson.loads(res)
 
         if "history" not in j:
             log.debug("no history in j")
@@ -152,7 +152,7 @@ class MoexAPI:
             cache = await redis_connection.get(url)
             if cache is not None:
                 log.debug(f"Got cached result {cache}")
-                security_params = MoexSecurityParameters(**json.loads(cache))
+                security_params = MoexSecurityParameters(**ujson.loads(cache))
                 return security_params
 
         log.debug(f"REDIS disabled or no cached result for {url}")
@@ -187,7 +187,7 @@ class MoexAPI:
                 }
                 if ENV.redis_enabled:
                     log.debug(f"Saving {security_params_dict} to cache")
-                    cached_json = json.dumps(security_params_dict)
+                    cached_json = ujson.dumps(security_params_dict)
                     await redis_connection.set(url, cached_json)
                 return MoexSecurityParameters(**security_params_dict)
 
