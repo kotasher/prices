@@ -8,4 +8,4 @@ class HistoryEntry(BaseModel):
     close: float | None
     high: float | None
     low: float | None
-    volume: float | None
+    volume: int | None
