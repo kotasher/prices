@@ -107,6 +107,7 @@ class MoexAPI:
         is_bonds = "FACEVALUE" in j["history"]["columns"]
 
         out = []
+        lower_ticker = ticker.lower()
         for entry in j["history"]["data"]:
 
             facevalue_coef = 1
@@ -127,7 +128,10 @@ class MoexAPI:
             if is_bonds and low is not None:
                 low *= facevalue_coef
 
-            volume = entry[Security.Volume]
+            # in case of currency
+            volume = 0
+            if not "_tom" in lower_ticker:
+                volume = entry[Security.Volume]
 
             history_entry_data = {
                 "date": date,
